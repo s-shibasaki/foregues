@@ -41,6 +41,12 @@ class ForeguesDataset(Dataset):
 
     def _prepare_data(self):
         """データの前処理（テクニカル指標の計算など）"""
+        # 数値データをfloat32に変換
+        numeric_columns = ['open', 'high', 'low', 'close']
+        for col in numeric_columns:
+            if col in self.data.columns:
+                self.data[col] = self.data[col].astype(np.float32)
+        
         # テクニカル指標の計算
         self._calculate_technical_indicators()
 
@@ -50,35 +56,35 @@ class ForeguesDataset(Dataset):
     def _calculate_technical_indicators(self):
         """テクニカル指標の計算"""
         # 価格変化率
-        self.data['price_change'] = self.data['close'].pct_change()
-        self.data['price_change_5'] = self.data['close'].pct_change(5)
-        self.data['price_change_20'] = self.data['close'].pct_change(20)
+        self.data['price_change'] = self.data['close'].pct_change().astype(np.float32)
+        self.data['price_change_5'] = self.data['close'].pct_change(5).astype(np.float32)
+        self.data['price_change_20'] = self.data['close'].pct_change(20).astype(np.float32)
 
         # 移動平均
-        self.data['sma_5'] = ta.trend.sma_indicator(self.data['close'], window=5)
-        self.data['sma_20'] = ta.trend.sma_indicator(self.data['close'], window=20)
+        self.data['sma_5'] = ta.trend.sma_indicator(self.data['close'], window=5).astype(np.float32)
+        self.data['sma_20'] = ta.trend.sma_indicator(self.data['close'], window=20).astype(np.float32)
 
         # 移動平均からの乖離率
-        self.data['close_sma5_ratio'] = self.data['close'] / self.data['sma_5'] - 1
-        self.data['close_sma20_ratio'] = self.data['close'] / self.data['sma_20'] - 1
+        self.data['close_sma5_ratio'] = (self.data['close'] / self.data['sma_5'] - 1).astype(np.float32)
+        self.data['close_sma20_ratio'] = (self.data['close'] / self.data['sma_20'] - 1).astype(np.float32)
 
         # RSI
-        self.data['rsi_14'] = ta.momentum.rsi(self.data['close'], window=14)
+        self.data['rsi_14'] = ta.momentum.rsi(self.data['close'], window=14).astype(np.float32)
 
         # MACD
         macd = ta.trend.MACD(self.data['close'])
-        self.data['macd'] = macd.macd()
-        self.data['macd_signal'] = macd.macd_signal()
-        self.data['macd_diff'] = macd.macd_diff()
+        self.data['macd'] = macd.macd().astype(np.float32)
+        self.data['macd_signal'] = macd.macd_signal().astype(np.float32)
+        self.data['macd_diff'] = macd.macd_diff().astype(np.float32)
 
         # ボリンジャーバンド
         bb = ta.volatility.BollingerBands(self.data['close'], window=20)
-        self.data['bb_upper'] = bb.bollinger_hband()
-        self.data['bb_lower'] = bb.bollinger_lband()
-        self.data['bb_position'] = (self.data['close'] - self.data['bb_lower']) / (self.data['bb_upper'] - self.data['bb_lower'])
+        self.data['bb_upper'] = bb.bollinger_hband().astype(np.float32)
+        self.data['bb_lower'] = bb.bollinger_lband().astype(np.float32)
+        self.data['bb_position'] = ((self.data['close'] - self.data['bb_lower']) / (self.data['bb_upper'] - self.data['bb_lower'])).astype(np.float32)
 
         # ATR (ボラティリティ)
-        self.data['atr'] = ta.volatility.average_true_range(self.data['high'], self.data['low'], self.data['close'], window=14)
+        self.data['atr'] = ta.volatility.average_true_range(self.data['high'], self.data['low'], self.data['close'], window=14).astype(np.float32)
 
         # 時間関連の特徴量 (カテゴリ)
         self.data['hour'] = self.data.index.hour
@@ -86,13 +92,13 @@ class ForeguesDataset(Dataset):
         self.data['month'] = self.data.index.month
 
         # ローソク足パターン (高値・安値・始値・終値の関係)
-        self.data['body_size'] = abs(self.data['close'] - self.data['open'])
-        self.data['upper_shadow'] = self.data['high'] - np.maximum(self.data['open'], self.data['close'])
-        self.data['lower_shadow'] = np.minimum(self.data['open'], self.data['close']) - self.data['low']
+        self.data['body_size'] = (abs(self.data['close'] - self.data['open'])).astype(np.float32)
+        self.data['upper_shadow'] = (self.data['high'] - np.maximum(self.data['open'], self.data['close'])).astype(np.float32)
+        self.data['lower_shadow'] = (np.minimum(self.data['open'], self.data['close']) - self.data['low']).astype(np.float32)
 
         # ボラティリティ (過去N期間の価格変動の標準偏差)
-        self.data['volatility_5'] = self.data['price_change'].rolling(window=5).std()
-        self.data['volatility_20'] = self.data['price_change'].rolling(window=20).std()
+        self.data['volatility_5'] = self.data['price_change'].rolling(window=5).std().astype(np.float32)
+        self.data['volatility_20'] = self.data['price_change'].rolling(window=20).std().astype(np.float32)
 
         # 特徴量リストの定義
         self.numerical_features = [
@@ -107,7 +113,6 @@ class ForeguesDataset(Dataset):
 
         self.categorical_features = ['hour', 'dayofweek', 'month']
 
-
     def _generate_labels(self):
         """ラベルの生成"""
         labels = []
@@ -121,7 +126,7 @@ class ForeguesDataset(Dataset):
                 labels.append(-1)  # 最初の行はラベル生成不可
                 continue
 
-            prev_close = self.data.iloc[current_idx - 1]['close']
+            prev_close = self.data['close'].iloc[current_idx - 1]
 
             # t+1から24時間後までの範囲を確認
             future_start_idx = current_idx + 1
@@ -146,7 +151,7 @@ class ForeguesDataset(Dataset):
 
             labels.append(label)
 
-        self.data['label'] = labels
+        self.data['label'] = np.array(labels, dtype=np.int64)
 
     def _fit_preprocessing(self):
         """前処理パラメータをフィット"""
@@ -164,8 +169,8 @@ class ForeguesDataset(Dataset):
             if len(valid_data) > 0:
                 scaler.fit(valid_data)
                 self.preprocessing_params['numerical_scalers'][feature] = {
-                    'mean': scaler.mean_[0] if scaler.mean_ is not None else 0.0,
-                    'scale': scaler.scale_[0] if scaler.scale_ is not None else 1.0,
+                    'mean': float(scaler.mean_[0]) if scaler.mean_ is not None else 0.0,
+                    'scale': float(scaler.scale_[0]) if scaler.scale_ is not None else 1.0,
                 }
             else:
                 # データがない場合のデフォルト
@@ -205,14 +210,14 @@ class ForeguesDataset(Dataset):
                 params = self.preprocessing_params['numerical_scalers'][feature]
                 # NaNはそのまま残す
                 mask = ~self.data[feature].isna()
-                self.data.loc[mask, feature] = (self.data.loc[mask, feature] - params['mean']) / params['scale']
+                self.data.loc[mask, feature] = ((self.data.loc[mask, feature] - params['mean']) / params['scale']).astype(np.float32)
 
         # カテゴリ特徴量のエンコーディング
         for feature in self.categorical_features:
             if feature in self.data.columns and feature in self.preprocessing_params['categorical_encoders']:
                 mapping = self.preprocessing_params['categorical_encoders'][feature]
                 # NaNは<NULL>としてエンコード
-                self.data[feature] = self.data[feature].fillna('<NULL>').map(mapping).fillna(0).astype(int)
+                self.data[feature] = self.data[feature].fillna('<NULL>').map(mapping).fillna(0).astype(np.int64)
 
     def _generate_valid_timestamps(self):
         """有効なタイムスタンプの生成"""
@@ -220,7 +225,7 @@ class ForeguesDataset(Dataset):
 
         for i in range(len(self.data)):
             # ラベルが有効(-1でない)かチェック
-            if self.data.iloc[i]['label'] == -1:
+            if self.data['label'].iloc[i] == -1:
                 continue
 
             # 過去のsequence_length分のデータがあるかチェック
@@ -251,13 +256,13 @@ class ForeguesDataset(Dataset):
         # 数値特徴量
         for feature in self.numerical_features:
             if feature in sequence_data.columns:
-                x_num[feature] = sequence_data[feature].values
+                x_num[feature] = sequence_data[feature].values.astype(np.float32)
 
         # カテゴリ特徴量
         for feature in self.categorical_features:
             if feature in sequence_data.columns:
-                x_cat[feature] = sequence_data[feature].values
-
+                x_cat[feature] = sequence_data[feature].values.astype(np.int64)
+                
         # マスク生成 (NaNでない箇所を1とする)
         mask = np.ones(len(sequence_data), dtype=bool)
 
@@ -287,7 +292,7 @@ class ForeguesDataset(Dataset):
         timestamp_idx = self.valid_indices[idx]
 
         # ラベルを取得
-        label = self.data.iloc[timestamp_idx]['label']
+        label = self.data['label'].iloc[timestamp_idx]
 
         # 現在時点 (t) の特徴量を取得
         current_data = self.data.iloc[timestamp_idx]
@@ -298,17 +303,17 @@ class ForeguesDataset(Dataset):
 
         for feature in self.numerical_features:
             if feature in current_data:
-                x_num_general[feature] = current_data[feature]
+                x_num_general[feature] = np.float32(current_data[feature])
         for feature in self.categorical_features:
             if feature in current_data:
-                x_cat_general[feature] = current_data[feature]
-
+                x_cat_general[feature] = np.int64(current_data[feature])
+                
         sequence_data = self._get_sequence_data(timestamp)
 
         return {
-            'timestamp': timestamp,
+            'timestamp': str(timestamp),
             'x_num': x_num_general,
             'x_cat': x_cat_general,
             'sequence_data': {'price_history': sequence_data},
-            'label': label
+            'labels': label
         }

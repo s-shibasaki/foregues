@@ -324,7 +324,7 @@ class SequenceTransformer(nn.Module):
     """時系列データ処理用のTransformer (CLSトークンを出力)"""
 
     def __init__(self, d_token: int = 192, n_layers: int = 3, n_heads: int = 8, d_ffn: Optional[int] = None, 
-                 dropout: float = 0.1, max_seq_len: int = 512):
+                 dropout: float = 0.1, max_seq_len: int = 1440):
         super().__init__()
         self.d_token = d_token
         self.max_seq_len = max_seq_len
