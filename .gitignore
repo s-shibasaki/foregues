@@ -132,6 +132,20 @@ dmypy.json
 *.csv
 *.txt
 *.zip
+*.joblib
+*.json
+*.pkl
+*.xlsx
+
+# Image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.svg
+
 notebooks/data/
 data/
 
