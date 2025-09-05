@@ -136,6 +136,7 @@ dmypy.json
 *.json
 *.pkl
 *.xlsx
+*.pth
 
 # Image files
 *.png

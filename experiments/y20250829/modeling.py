@@ -17,12 +17,17 @@ class SimpleCNNRegressor(nn.Module):
         self.bn4 = nn.BatchNorm2d(256)
         
         self.pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(0.3)  # Dropoutを減らす
         
-        # 200 -> 100 -> 50 -> 25 -> 12 (after 4 pooling layers)
-        self.fc1 = nn.Linear(256 * 12 * 12, 512)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 1)
+        # Global Average Poolingを追加
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        
+        # より小さなFC層
+        self.fc1 = nn.Linear(256, 128)
+        self.fc2 = nn.Linear(128, 32)
+        self.fc3 = nn.Linear(32, 1)
+
+        self.apply(self.init_weights)
         
     def forward(self, x):
         # Conv Block 1
@@ -32,16 +37,28 @@ class SimpleCNNRegressor(nn.Module):
         # Conv Block 3
         x = self.pool(F.relu(self.bn3(self.conv3(x))))
         # Conv Block 4
-        x = self.pool(F.relu(self.bn4(self.conv4(x))))
+        x = F.relu(self.bn4(self.conv4(x)))
         
-        # Flatten
-        x = x.reshape(x.size(0), -1)
+        # Global Average Pooling
+        x = self.global_pool(x)
+        x = x.view(x.size(0), -1)
         
         # Fully connected layers
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.fc3(x)
+        x = self.fc3(x)  # 最後の層にはdropoutなし
         
         return x
+    
+    def init_weights(self, m):
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight)
+            nn.init.constant_(m.bias, 0)
